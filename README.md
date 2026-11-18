@@ -38,6 +38,25 @@ Without LoRAs, connect it right after `Load Diffusion Model`. [`workflows/`](wor
 | `int8_attention` | on | Runs the diffusion model's attention in INT8. The text encoder and VAE stay exact. |
 | `int8_start_percent` | 0.0 | Keeps exact attention for this share of the first steps. 0.2 stays closer to the exact image for about 2 s more. |
 
+## Use with Spectrum
+
+[ComfyUI-Spectrum-MOSS](https://github.com/Rkkss/ComfyUI-Spectrum-MOSS) forecasts the model's hidden state to skip whole passes. MOSS Booster makes the passes that do run cheaper, so the two stack. Spectrum skips the same steps with or without MOSS Booster.
+
+```
+Load LoRA (Model) → MOSS Booster → ModelSamplingAuraFlow → SkipLayerGuidanceDiTSimple → Spectrum MOSS-Image (Adaptive) → KSampler
+```
+
+4 LoRAs, er_sde, CFG 2.5, 25 steps, Spectrum Adaptive (warmup 7, detail guard 1, tail 1, horizon cap 2):
+
+| Setup | SLG 0.35–0.7 | SLG 0.0–1.0 |
+|---|---|---|
+| Plain | 67 s | 62 s |
+| MOSS Booster | 50 s | – |
+| Spectrum | 62 s | 46 s |
+| Spectrum + MOSS Booster | 43 s | 33 s |
+
+Spectrum relearns its forecast whenever SkipLayerGuidance turns on or off, so a partial SLG range limits how many steps it can skip (16 of 75 passes here, against 27 of 75 with the full range). A full-range SLG changes the image somewhat, so compare a few seeds before switching.
+
 ## How it works
 
 A profile of one MOSS Image forward pass on the RTX 4050 (1.24 s, 4,196 tokens) showed:
@@ -68,12 +87,12 @@ The merged copy of the model uses about 5 GB of system RAM.
 
 ## Benchmarking
 
-[`bench/`](bench) has the scripts behind the numbers above (Linux, bash). They start a headless ComfyUI on port 8190, time workflows, and compare images. Replace the `your_lora_N.safetensors` placeholders in `wf_lora.json` with LoRAs you have.
+[`bench/`](bench) has the scripts behind the numbers above (Linux, bash). They start a headless ComfyUI on port 8190, time workflows, and compare images. `gen.py` inserts the node into any API-format workflow; replace the `your_lora_N.safetensors` placeholders in `wf_lora.json` with LoRAs you have, or pass your own workflow.
 
 ```bash
 cd bench
 COMFYUI_DIR=/path/to/ComfyUI ./start.sh srv --extra-model-paths-config /path/to/extra_model_paths.yaml
-python3 run.py "$(python3 gen.py lora 1 1 0.0)" --runs 2 --prefix boost
+python3 run.py "$(python3 gen.py wf_lora.json 1 1 0.0)" --runs 2 --prefix boost
 python3 run.py wf_lora.json --runs 2 --prefix exact
 /path/to/ComfyUI/.venv/bin/python cmp.py .run/out/exact_0_00001_.png .run/out/boost_0_00001_.png
 ./stop.sh
