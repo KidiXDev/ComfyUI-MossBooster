@@ -1,0 +1,17 @@
+[project]
+name = "comfyui-mossbooster"
+version = "0.1.0"
+description = "Faster MOSS Image sampling in ComfyUI: LoRA baking and INT8 attention."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+
+[project.urls]
+Repository = "https://github.com/KidiXDev/ComfyUI-MossBooster"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
